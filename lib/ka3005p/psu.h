@@ -2,7 +2,6 @@
 #define PSU_H_INCLUDED
 
 #include <Arduino.h>
-#include <Usb.h>
 #include "cdc.h"
 
 #define PSU_BUFFER_LENGTH      15
