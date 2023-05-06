@@ -1,6 +1,6 @@
 #include "psu.h"
 
-PSU::PSU(USBHost* usb, Stream* serial) : pCdc(usb, serial)
+PSU::PSU(Stream* serial) : cdc(serial)
 {
 }
 
@@ -56,14 +56,14 @@ float PSU::getVoltage(const char* channel)
 
 uint8_t PSU::getStatus()
 {
-	pCdc.SndData(sizeof(STATUS GETTER), (uint8_t*)STATUS GETTER);
+	cdc.SndData(sizeof(STATUS GETTER), (uint8_t*)STATUS GETTER);
 
 	delay(50); // give some time to receive the response.
 
 	uint8_t rx_buffer[10];
 	uint32_t rcvd = sizeof(rx_buffer);
 
-	pCdc.RcvData(&rcvd, rx_buffer);
+	cdc.RcvData(&rcvd, rx_buffer);
 
 	this->status = rx_buffer[0];
 
@@ -112,7 +112,7 @@ float PSU::get(const char* command, const char* channel)
 	w_ptr   += strlen(command);
 	*w_ptr++ = channel[0];
 	*w_ptr++ = GETTER[0];
-	uint32_t rcode = pCdc.SndData(w_ptr - tx_buffer, (uint8_t*)tx_buffer);
+	uint32_t rcode = cdc.SndData(w_ptr - tx_buffer, (uint8_t*)tx_buffer);
 
 	if (rcode) {
 		return 31.0; // PSU provides up to 30V, 31 is consider to be an invalid/error value.
@@ -123,7 +123,7 @@ float PSU::get(const char* command, const char* channel)
 	uint8_t rx_buffer[PSU_BUFFER_LENGTH];
 	uint32_t rcvd = sizeof(rx_buffer);
 
-	rcode = pCdc.RcvData(&rcvd, rx_buffer);
+	rcode = cdc.RcvData(&rcvd, rx_buffer);
 
 	if (rcode) {
 		return 32.0;
@@ -140,7 +140,7 @@ void PSU::sendBool(const char* command, bool state)
 	strcpy(tx_buffer, command);
 	*(tx_buffer + strlen(command)) = state ? '1' : '0';
 
-	pCdc.SndData(strlen(tx_buffer), (uint8_t*)tx_buffer);
+	cdc.SndData(strlen(tx_buffer), (uint8_t*)tx_buffer);
 }
 
 void PSU::sendFloat(const char* command, const char* channel, float value)
@@ -153,5 +153,15 @@ void PSU::sendFloat(const char* command, const char* channel, float value)
 	*w_ptr++ = channel[0];
 	*w_ptr++ = SEPARATOR[0];
 	w_ptr   += snprintf(w_ptr, PSU_BUFFER_LENGTH - (w_ptr - tx_buffer) - 1, "%.2f", value);
-	pCdc.SndData(w_ptr - tx_buffer, (uint8_t*)tx_buffer);
+	cdc.SndData(w_ptr - tx_buffer, (uint8_t*)tx_buffer);
+}
+
+void PSU::task(void)
+{
+	cdc.Usb.Task();
+}
+
+uint8_t PSU::getUsbTaskState(void)
+{
+	return cdc.Usb.getUsbTaskState();
 }

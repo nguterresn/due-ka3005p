@@ -38,7 +38,9 @@
 class PSU
 {
 public:
-	PSU(USBHost* usb, Stream* serial = nullptr);
+	PSU(Stream* serial = nullptr);
+	CDC cdc;
+
 	// Commands
 	float getActualCurrent(const char* channel);
 	float getActualVoltage(const char* channel);
@@ -58,9 +60,11 @@ public:
 	bool isOCPOn();
 	bool isOutputOn();
 	bool isOVPOn();
+	// USB State Related
+	void task(void);
+	uint8_t getUsbTaskState(void);
 
 private:
-	CDC pCdc;
 	uint8_t status;
 
 	float get(const char* command, const char* channel);

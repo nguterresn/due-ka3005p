@@ -1,30 +1,30 @@
 /* Copyright (C) 2011 Circuits At Home, LTD. All rights reserved.
-
-This software may be distributed and modified under the terms of the GNU
-General Public License version 2 (GPL2) as published by the Free Software
-Foundation and appearing in the file GPL2.TXT included in the packaging of
-this file. Please note that GPL2 Section 2[b] requires that all works based
-on this software must also be made publicly available under the terms of
-the GPL2 ("Copyleft").
-
-Contact information
--------------------
-
-Circuits At Home, LTD
-Web      :  http://www.circuitsathome.com
-e-mail   :  support@circuitsathome.com
-
-* Copyright (c) Kisi Incorporated 2023-present
-
-This code was slightly changed to comply with our requirements.
-*/
+ *
+ * This software may be distributed and modified under the terms of the GNU
+ * General Public License version 2 (GPL2) as published by the Free Software
+ * Foundation and appearing in the file GPL2.TXT included in the packaging of
+ * this file. Please note that GPL2 Section 2[b] requires that all works based
+ * on this software must also be made publicly available under the terms of
+ * the GPL2 ("Copyleft").
+ *
+ * Contact information
+ * -------------------
+ *
+ * Circuits At Home, LTD
+ * Web      :  http://www.circuitsathome.com
+ * e-mail   :  support@circuitsathome.com
+ *
+ * Copyright (c) Kisi Incorporated 2023-present
+ *
+ * This code was slightly changed to comply with our requirements.
+ */
 
 #include "cdc.h"
 
 const uint32_t CDC::epDataInIndex  = 1;
 const uint32_t CDC::epDataOutIndex = 2;
 
-CDC::CDC(USBHost* p, Stream* serial) : pUsb(p), bAddress(0), bNumEP(1), serial(serial)
+CDC::CDC(Stream* serial) : bAddress(0), bNumEP(1), serial(serial)
 {
 	// Initialize endpoint data structures
 	for (uint32_t i = 0; i < totalEndpoints; ++i) {
@@ -36,9 +36,7 @@ CDC::CDC(USBHost* p, Stream* serial) : pUsb(p), bAddress(0), bNumEP(1), serial(s
 	}
 
 	// Register in USB subsystem
-	if (pUsb) {
-		pUsb->RegisterDeviceClass(this);
-	}
+  Usb.RegisterDeviceClass(this);
 }
 
 uint32_t CDC::Init(uint32_t parent, uint32_t port, uint32_t lowspeed)
@@ -50,7 +48,7 @@ uint32_t CDC::Init(uint32_t parent, uint32_t port, uint32_t lowspeed)
 	uint32_t num_of_conf = 0;
 
 	// Get memory address of USB device address pool
-	AddressPool& addrPool = pUsb->GetAddressPool();
+	AddressPool& addrPool = Usb.GetAddressPool();
 
 	// Check if address has already been assigned to an instance
 	if (bAddress) {
@@ -69,30 +67,30 @@ uint32_t CDC::Init(uint32_t parent, uint32_t port, uint32_t lowspeed)
 	}
 
 	// Save old pointer to EP_RECORD of address 0
-	oldep_ptr   = p->epinfo;
+	oldep_ptr = p->epinfo;
 	// Temporary assign new pointer to epInfo to p->epinfo in order to avoid toggle inconsistence
 	p->epinfo   = epInfo;
 	p->lowspeed = lowspeed;
 	// Get device descriptor
-	rcode       = pUsb->getDevDescr(0, 0, sizeof(USB_DEVICE_DESCRIPTOR), (uint8_t*)buf);
+	rcode = Usb.getDevDescr(0, 0, sizeof(USB_DEVICE_DESCRIPTOR), (uint8_t*)buf);
 	// Restore p->epinfo
-	p->epinfo   = oldep_ptr;
+	p->epinfo = oldep_ptr;
 
 	if (rcode) {
 		goto FailGetDevDescr;
 	}
 
 	// Allocate new address according to device class
-	bAddress             = addrPool.AllocAddress(parent, false, port);
+	bAddress = addrPool.AllocAddress(parent, false, port);
 	// Extract Max Packet Size from device descriptor
 	epInfo[0].maxPktSize = (uint8_t)((USB_DEVICE_DESCRIPTOR*)buf)->bMaxPacketSize0;
 
 	// Assign new address to the device
-	rcode = pUsb->setAddr(0, 0, bAddress);
+	rcode = Usb.setAddr(0, 0, bAddress);
 	if (rcode) {
 		p->lowspeed = false;
 		addrPool.FreeAddress(bAddress);
-		bAddress    = 0;
+		bAddress = 0;
 		return rcode;
 	}
 
@@ -107,7 +105,7 @@ uint32_t CDC::Init(uint32_t parent, uint32_t port, uint32_t lowspeed)
 	p->lowspeed = lowspeed;
 
 	// Assign epInfo to epinfo pointer - only EP0 is known
-	rcode = pUsb->setEpInfoEntry(bAddress, 1, epInfo);
+	rcode = Usb.setEpInfoEntry(bAddress, 1, epInfo);
 	if (rcode) {
 		goto FailSetDevTblEntry;
 	}
@@ -119,7 +117,7 @@ uint32_t CDC::Init(uint32_t parent, uint32_t port, uint32_t lowspeed)
 		ConfigDescParser<USB_CLASS_CDC_DATA, 0, 0, 0xFF> confDescrParser(this);
 
 		delay(1);
-		rcode = pUsb->getConfDescr(bAddress, 0, i, &confDescrParser);
+		rcode = Usb.getConfDescr(bAddress, 0, i, &confDescrParser);
 
 		if (rcode) {
 			goto FailGetConfDescr;
@@ -132,14 +130,14 @@ uint32_t CDC::Init(uint32_t parent, uint32_t port, uint32_t lowspeed)
 
 	if (bNumEP == 3) {
 		// Assign epInfo to epinfo pointer - this time all 3 endpoins
-		rcode = pUsb->setEpInfoEntry(bAddress, 3, epInfo);
+		rcode = Usb.setEpInfoEntry(bAddress, 3, epInfo);
 		if (rcode) {
 			goto FailSetDevTblEntry;
 		}
 	}
 
 	// Set Configuration Value
-	rcode = pUsb->setConf(bAddress, 0, bConfNum);
+	rcode = Usb.setConf(bAddress, 0, bConfNum);
 
 	if (rcode) {
 		goto FailSetConfDescr;
@@ -209,10 +207,10 @@ uint32_t CDC::Release()
 	UHD_Pipe_Free(epInfo[epDataOutIndex].hostPipeNum);
 
 	// Free allocated USB address
-	pUsb->GetAddressPool().FreeAddress(bAddress);
+	Usb.GetAddressPool().FreeAddress(bAddress);
 
 	// Must have to be reset to 1
-	bNumEP   = 1;
+	bNumEP = 1;
 
 	bAddress = 0;
 
@@ -221,10 +219,10 @@ uint32_t CDC::Release()
 
 uint32_t CDC::RcvData(uint32_t* bytes_rcvd, uint8_t* dataptr)
 {
-	return pUsb->inTransfer(bAddress, epInfo[epDataInIndex].deviceEpNum, bytes_rcvd, dataptr);
+	return Usb.inTransfer(bAddress, epInfo[epDataInIndex].deviceEpNum, bytes_rcvd, dataptr);
 }
 
 uint32_t CDC::SndData(uint32_t nbytes, uint8_t* dataptr)
 {
-	return pUsb->outTransfer(bAddress, epInfo[epDataOutIndex].deviceEpNum, nbytes, dataptr);
+	return Usb.outTransfer(bAddress, epInfo[epDataOutIndex].deviceEpNum, nbytes, dataptr);
 }

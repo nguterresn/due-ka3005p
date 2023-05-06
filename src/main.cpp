@@ -1,7 +1,12 @@
 #include "psu.h"
 
-USBHost Usb;
-PSU psu(&Usb, &Serial);
+// #define USE_SERIAL
+
+#ifdef USE_SERIAL
+PSU psu;
+#else
+PSU psu(&Serial);
+#endif
 
 void setup()
 {
@@ -10,8 +15,8 @@ void setup()
 
 void loop()
 {
-	Usb.Task();
-	uint8_t usb_state = Usb.getUsbTaskState();
+	psu.task();
+	uint8_t usb_state = psu.getUsbTaskState();
 	if (usb_state == USB_DETACHED_SUBSTATE_WAIT_FOR_DEVICE) {
 		// ka3005p not connected.
 		return;
